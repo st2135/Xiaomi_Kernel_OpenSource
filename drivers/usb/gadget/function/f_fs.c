@@ -858,7 +858,7 @@ static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 		}
 
 		if (io_data->aio) {
-			req = usb_ep_alloc_request(ep->ep, GFP_KERNEL);
+			req = usb_ep_alloc_request(ep->ep, GFP_ATOMIC);
 			if (unlikely(!req))
 				goto error_lock;
 
@@ -1773,11 +1773,13 @@ static int ffs_func_eps_enable(struct ffs_function *func)
 	spin_lock_irqsave(&func->ffs->eps_lock, flags);
 	do {
 		struct usb_endpoint_descriptor *ds;
+		int needs_comp_desc = false;
 		int desc_idx;
 
-		if (ffs->gadget->speed == USB_SPEED_SUPER)
+		if (ffs->gadget->speed == USB_SPEED_SUPER) {
 			desc_idx = 2;
-		else if (ffs->gadget->speed == USB_SPEED_HIGH)
+			needs_comp_desc = true;
+		} else if (ffs->gadget->speed == USB_SPEED_HIGH)
 			desc_idx = 1;
 		else
 			desc_idx = 0;
@@ -3125,7 +3127,7 @@ static int ffs_func_setup(struct usb_function *f,
 	__ffs_event_add(ffs, FUNCTIONFS_SETUP);
 	spin_unlock_irqrestore(&ffs->ev.waitq.lock, flags);
 
-	return 0;
+	return creq->wLength == 0 ? USB_GADGET_DELAYED_STATUS : 0;
 }
 
 static void ffs_func_suspend(struct usb_function *f)
